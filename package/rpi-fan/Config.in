@@ -1,0 +1,6 @@
+menuconfig BR2_PACKAGE_RPI_FAN
+        bool "rpi-fan"
+        depends on BR2_USE_MMU
+        help
+          Controls RPi Fans
+
