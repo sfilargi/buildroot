@@ -1,0 +1,3 @@
+auto l0
+iface lo inet loopback
+

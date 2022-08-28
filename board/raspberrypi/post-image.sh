@@ -34,6 +34,10 @@ ROOTPATH_TMP="$(mktemp -d)"
 
 rm -rf "${GENIMAGE_TMP}"
 
+rm -f ${TARGET_DIR}/etc/init.d/S41dhcpcd
+rm -f ${TARGET_DIR}/etc/init.d/S80dhcp-relay
+rm -f ${TARGET_DIR}/etc/init.d/S80dhcp-server
+
 genimage \
 	--rootpath "${ROOTPATH_TMP}"   \
 	--tmppath "${GENIMAGE_TMP}"    \

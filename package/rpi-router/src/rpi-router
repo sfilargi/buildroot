@@ -1,0 +1,154 @@
+#!/bin/sh
+
+set -x
+
+enable_forwarding() {
+    sysctl -w net.ipv4.ip_forward=1
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    sysctl -w net.ipv6.conf.default.disable_ipv6=1 
+}
+
+setup_ns() {
+    ip netns add switch
+    ip netns add sanjose
+    ip netns add london
+    ip netns add starlink
+    ip netns add lightsail
+}
+
+setup_switch() {
+    ip netns exec switch ip link add br0 type bridge
+    ip netns exec switch ip link set br0 up
+
+    ip link add veth1 type veth peer name veth1 netns switch
+    ip link add veth2 netns sanjose type veth peer name veth2 netns switch
+    ip link add veth3 netns london type veth peer name veth3 netns switch
+    ip link add veth8 netns starlink type veth peer name veth8 netns switch
+    ip link add veth10 netns lightsail type veth peer name veth10 netns switch
+
+    ip netns exec switch ip link set veth1 master br0
+    ip netns exec switch ip link set veth1 up
+    ip netns exec switch ip link set veth2 master br0
+    ip netns exec switch ip link set veth2 up
+    ip netns exec switch ip link set veth3 master br0
+    ip netns exec switch ip link set veth3 up
+    ip netns exec switch ip link set veth4 master br0
+    ip netns exec switch ip link set veth4 up
+    ip netns exec switch ip link set veth7 master br0
+    ip netns exec switch ip link set veth7 up
+    ip netns exec switch ip link set veth8 master br0
+    ip netns exec switch ip link set veth8 up
+    ip netns exec switch ip link set veth10 master br0
+    ip netns exec switch ip link set veth10 up
+
+    ip addr add 10.0.0.1/24 dev veth1
+    ip link set veth1 up
+    ip netns exec sanjose ip addr add 10.0.0.2/24 dev veth2
+    ip netns exec sanjose ip link set veth2 up
+    ip netns exec london ip addr add 10.0.0.3/24 dev veth3
+    ip netns exec london ip link set veth3 up
+    ip netns exec starlink ip addr add 10.0.0.8/24 dev veth8
+    ip netns exec starlink ip link set veth8 up
+    ip netns exec lightsail ip addr add 10.0.0.10/24 dev veth10
+    ip netns exec lightsail ip link set veth10 up
+}
+
+setup_lo() {
+    ip addr add 127.0.0.1/8 dev lo
+    ip link set lo up
+} 
+
+setup_eno1() {
+    ip addr add 192.168.1.2/24 dev eno1
+    ip link set eno1 down
+    ip link set dev eno1 address 0e:00:00:00:77:01
+    ip link set eno1 up
+
+    ip link add link eno1 name eno1.2 type vlan id 2
+    ip link set eno1.2 down
+    ip link set dev eno1.2 address 0e:00:00:00:77:02
+    ip link set eno1.2 up
+    ip link set eno1.2 netns sanjose
+    ip netns exec sanjose ip addr add 192.168.2.1/24 dev eno1.2
+    ip netns exec sanjose ip link set eno1.2 up
+
+    ip link add link eno1 name eno1.3 type vlan id 3
+    ip link set eno1.3 down
+    ip link set dev eno1.3 address 0e:00:00:00:77:03
+    ip link set eno1.3 up
+    ip link set eno1.3 netns london
+    ip netns exec london ip addr add 192.168.3.1/24 dev eno1.3
+    ip netns exec london ip link set eno1.3 up
+
+    ip link add link eno1 name eno1.8 type vlan id 8
+    ip link set eno1.8 down
+    ip link set dev eno1.8 address 0e:00:00:00:77:08
+    ip link set eno1.8 up
+    ip link set eno1.8 netns starlink
+    ip netns exec starlink ip link set eno1.8 up
+}
+
+setup_routes() {
+    ip route add 192.168.2.0/24 via 10.0.0.2
+    ip route add 192.168.3.0/24 via 10.0.0.3
+    ip route add 192.168.4.0/24 via 10.0.0.4
+    ip route add default via 10.0.0.8
+
+    ip netns exec sanjose ip route add 192.168.1.0/24 via 10.0.0.1
+    ip netns exec sanjose ip route add default via 10.0.0.8
+
+    ip netns exec london ip route add 192.168.1.0/24 via 10.0.0.1
+    ip netns exec london ip route add default via 10.0.0.10
+    
+    ip netns exec starlink ip route add 192.168.1.0/24 via 10.0.0.1
+    ip netns exec starlink ip route add 192.168.2.0/24 via 10.0.0.2
+    ip netns exec starlink ip route add 192.168.3.0/24 via 10.0.0.3
+    ip netns exec starlink ip route add 10.8.0.2/32 via 10.0.0.10
+
+    ip netns exec lightsail ip route add 192.168.3.0/24 via 10.0.0.3
+    ip netns exec lightsail ip route add default via 10.0.0.8
+}
+
+run_dhcpd() {
+    ip netns exec sanjose /usr/sbin/dnsmasq -C /etc/dnsmasq-sanjose.conf
+    ip netns exec london udhcpd -S /etc/udhcpd-london.conf
+}
+
+run_dhcpcd() {
+    ip netns exec starlink udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eno1.8.pid -i eno1.8
+}
+
+setup_nft() {
+    ip netns exec starlink nft -f /etc/nftables-starlink.conf
+}
+
+
+synchronize_clock() {
+    sntp pool.ntp.org
+}
+
+start_wg() {
+    chmod 0400 /etc/wireguard/*
+    chmod 0500 /etc/wireguard
+    
+    ip netns exec lightsail ip rule add fwmark 10 table 10
+    ip netns exec lightsail nft -f /etc/nftables-ligthsail.conf
+    ip netns exec lightsail wg-quick up wg0
+}
+
+enable_forwarding
+setup_lo
+setup_ns
+setup_switch
+setup_eno1
+run_dhcpd
+run_dhcpcd
+setup_routes
+setup_nft
+synchronize_clock
+start_wg
+
+set +x
+while true; do
+    sleep 1
+done
