@@ -3,7 +3,7 @@
 enable_forwarding() {
     sysctl -w net.ipv4.ip_forward=1
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
-    sysctl -w net.ipv6.conf.default.disable_ipv6 = 1 
+    sysctl -w net.ipv6.conf.default.disable_ipv6=1 
 }
 
 setup_pi() {
@@ -65,9 +65,16 @@ setup_switch() {
     ip netns exec lightsail ip link set veth10 up
 }
 
+setup_lo() {
+    ip addr add 127.0.0.1/8 dev lo
+    ip link set lo up
+} 
+
 setup_eth0() {
-    ifconfig eth0 192.168.1.2/24
-    ifconfig eth0 up
+    ip addr add 127.0.0.1/8 dev lo
+    ip link set lo up
+    ip addr add 192.168.1.2/24 dev eth0
+    ip link set eth0 up
 
     ip -4 route add 0.0.0.0/0 via 192.168.4.1 dev eth0
 
@@ -130,7 +137,7 @@ run_dhcpd() {
 
 run_dhcpcd() {
     ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.7.pid -i eth0.7
-    ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.8.pid -i eth0.8
+    ip netns exec starlink udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.8.pid -i eth0.8
 }
 
 setup_nft() {
@@ -139,12 +146,15 @@ setup_nft() {
 }
 
 start_wg() {
+    chmod 0400 /etc/wireguard/*
+    chmod 0500 /etc/wireguard
     ip netns exec lightsail ip rule add fwmark 10 table 10
     ip netns exec lightsail nft -f /etc/nftables-ligthsail.conf
     ip netns exec lightsail wg-quick up wg0
 }
 
 enable_forwarding
+setup_lo
 setup_pi
 setup_ns
 setup_switch

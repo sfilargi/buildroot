@@ -3,7 +3,7 @@
 case "$1" in
         start)
                 echo Starting router
-                /sbin/router &
+                /sbin/rpi-router &
                 ;;
         *)
                 ;;
