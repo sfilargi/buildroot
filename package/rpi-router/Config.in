@@ -1,0 +1,6 @@
+menuconfig BR2_PACKAGE_RPI_ROUTER
+        bool "rpi-router"
+        depends on BR2_USE_MMU
+        help
+          Router
+
