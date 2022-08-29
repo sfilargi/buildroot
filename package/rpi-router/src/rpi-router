@@ -123,18 +123,14 @@ setup_routes() {
 }
 
 run_dhcpd() {
-    rm -f /var/lib/dhcp/dhcpd-*.pid
-    touch /var/lib/dhcp/dhcpd-sanjose.leases
-    ip netns exec sanjose dhcpd -cf /etc/dhcp/dhcpd-sanjose.conf eth0.2
-    touch /var/lib/dhcp/dhcpd-london.leases
-    ip netns exec london dhcpd -cf /etc/dhcp/dhcpd-london.conf eth0.3
-    touch /var/lib/dhcp/dhcpd-milpitas.leases
-    ip netns exec milpitas dhcpd -cf /etc/dhcp/dhcpd-milpitas.conf eth0.4
+    ip netns exec sanjose udhcpd -S /etc/udhcpd-sanjose.conf
+    ip netns exec london udhcpd -S /etc/udhcpd-london.conf
+    ip netns exec milpitas udhcpd -S /etc/udhcpd-milpitas.conf
 }
 
 run_dhcpcd() {
-    ip netns exec frontier dhcpcd eth0.7
-    ip netns exec starlink dhcpcd eth0.8
+    ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.7.pid -i eth0.7
+    ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.8.pid -i eth0.8
 }
 
 setup_nft() {
