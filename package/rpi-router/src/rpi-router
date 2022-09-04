@@ -1,15 +1,11 @@
 #!/bin/sh
 
+set -x
+
 enable_forwarding() {
     sysctl -w net.ipv4.ip_forward=1
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     sysctl -w net.ipv6.conf.default.disable_ipv6=1 
-}
-
-setup_pi() {
-    echo 0 > /sys/class/leds/led0/brightness
-    echo 0 > /sys/class/leds/led1/brightness
-    /opt/bin/rpi-fan &
 }
 
 setup_ns() {
@@ -70,59 +66,62 @@ setup_lo() {
     ip link set lo up
 } 
 
-setup_eth0() {
-    ip addr add 127.0.0.1/8 dev lo
-    ip link set lo up
-    ip addr add 192.168.1.2/24 dev eth0
-    ip link set eth0 up
+setup_eno1() {
+    ip addr add 192.168.1.2/24 dev eno1
+    ip link set eno1 up
 
-    ip -4 route add 0.0.0.0/0 via 192.168.4.1 dev eth0
+    ip link add link eno1 name eno1.2 type vlan id 2
+    ip link set eno1.2 netns sanjose
+    ip netns exec sanjose ip addr add 192.168.2.1/24 dev eno1.2
+    ip netns exec sanjose ip link set eno1.2 up
 
-    ip link add link eth0 name eth0.2 type vlan id 2
-    ip link set eth0.2 netns sanjose
-    ip netns exec sanjose ip addr add 192.168.2.1/24 dev eth0.2
-    ip netns exec sanjose ip link set eth0.2 up
+    ip link add link eno1 name eno1.3 type vlan id 3
+    ip link set eno1.3 netns london
+    ip netns exec london ip addr add 192.168.3.1/24 dev eno1.3
+    ip netns exec london ip link set eno1.3 up
 
-    ip link add link eth0 name eth0.3 type vlan id 3
-    ip link set eth0.3 netns london
-    ip netns exec london ip addr add 192.168.3.1/24 dev eth0.3
-    ip netns exec london ip link set eth0.3 up
-
-    ip link add link eth0 name eth0.4 type vlan id 4
-    ip link set eth0.4 netns milpitas
-    ip netns exec milpitas ip addr add 192.168.4.1/24 dev eth0.4
-    ip netns exec milpitas ip link set eth0.4 up
+    ip link add link eno1 name eno1.4 type vlan id 4
+    ip link set eno1.4 netns milpitas
+    ip netns exec milpitas ip addr add 192.168.4.1/24 dev eno1.4
+    ip netns exec milpitas ip link set eno1.4 up
     
-    ip link add link eth0 name eth0.7 type vlan id 7
-    ip link set eth0.7 netns frontier
-    ip netns exec frontier ip link set eth0.7 up
+    ip link add link eno1 name eno1.7 type vlan id 7
+    ip link set eno1.7 netns frontier
+    ip netns exec frontier ip link set eno1.7 up
 
-    ip link add link eth0 name eth0.8 type vlan id 8
-    ip link set eth0.8 netns starlink
-    ip netns exec starlink ip link set eth0.8 up
+    ip link add link eno1 name eno1.8 type vlan id 8
+    ip link set eno1.8 netns starlink
+    ip netns exec starlink ip link set eno1.8 up
 }
 
 setup_routes() {
     ip route add 192.168.2.0/24 via 10.0.0.2
     ip route add 192.168.3.0/24 via 10.0.0.3
     ip route add 192.168.4.0/24 via 10.0.0.4
+    ip route add 192.168.5.0/24 via 192.168.1.5
     ip route add default via 10.0.0.8
 
     ip netns exec sanjose ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec sanjose ip route add default via 10.0.0.8
+
     ip netns exec london ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec london ip route add default via 10.0.0.10
+
     ip netns exec milpitas ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec milpitas ip route add default via 10.0.0.7
 
+    ip netns exec frontier ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec frontier ip route add 192.168.2.0/24 via 10.0.0.2
     ip netns exec frontier ip route add 192.168.3.0/24 via 10.0.0.3
     ip netns exec frontier ip route add 192.168.4.0/24 via 10.0.0.4
+    ip netns exec frontier ip route add 192.168.5.0/24 via 10.0.0.1
     ip netns exec frontier ip route add 10.8.0.2/32 via 10.0.0.10
     
+    ip netns exec starlink ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec starlink ip route add 192.168.2.0/24 via 10.0.0.2
     ip netns exec starlink ip route add 192.168.3.0/24 via 10.0.0.3
     ip netns exec starlink ip route add 192.168.4.0/24 via 10.0.0.4
+    ip netns exec starlink ip route add 192.168.5.0/24 via 10.0.0.1
     ip netns exec starlink ip route add 10.8.0.2/32 via 10.0.0.10
 
     ip netns exec lightsail ip route add 192.168.3.0/24 via 10.0.0.3
@@ -136,8 +135,8 @@ run_dhcpd() {
 }
 
 run_dhcpcd() {
-    ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.7.pid -i eth0.7
-    ip netns exec starlink udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eth0.8.pid -i eth0.8
+    ip netns exec frontier udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eno1.7.pid -i eno1.7
+    ip netns exec starlink udhcpc -t1 -A3 -b -R -S -p /var/ran/udhcpc.eno1.8.pid -i eno1.8
 }
 
 setup_nft() {
@@ -155,16 +154,16 @@ start_wg() {
 
 enable_forwarding
 setup_lo
-setup_pi
 setup_ns
 setup_switch
-setup_eth0
+setup_eno1
 run_dhcpd
 run_dhcpcd
 setup_routes
 setup_nft
 start_wg
 
+set +x
 while true; do
     sleep 1
 done
