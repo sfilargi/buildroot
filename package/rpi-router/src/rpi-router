@@ -124,6 +124,11 @@ setup_nft() {
     ip netns exec starlink nft -f /etc/nftables-starlink.conf
 }
 
+
+synchronize_clock() {
+    sntp pool.ntp.org
+}
+
 start_wg() {
     chmod 0400 /etc/wireguard/*
     chmod 0500 /etc/wireguard
@@ -146,6 +151,7 @@ run_dhcpd
 run_dhcpcd
 setup_routes
 setup_nft
+synchronize_clock
 start_wg
 
 set +x
