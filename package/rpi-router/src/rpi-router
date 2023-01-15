@@ -90,7 +90,8 @@ setup_routes() {
     ip route add default via 10.0.0.8
 
     ip netns exec sanjose ip route add 192.168.1.0/24 via 10.0.0.1
-    ip netns exec sanjose ip route add default via 10.0.0.11
+    #ip netns exec sanjose ip route add default via 10.0.0.11
+    ip netns exec sanjose ip route add default via 10.0.0.8
 
     ip netns exec london ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec london ip route add default via 10.0.0.10
@@ -110,7 +111,8 @@ setup_routes() {
 }
 
 run_dhcpd() {
-    ip netns exec sanjose udhcpd -S /etc/udhcpd-sanjose.conf
+    #ip netns exec sanjose udhcpd -S /etc/udhcpd-sanjose.conf
+    ip netns exec sanjose /usr/sbin/dnsmasq -C /etc/dnsmasq-sanjose.conf
     ip netns exec london udhcpd -S /etc/udhcpd-london.conf
 }
 
@@ -130,9 +132,9 @@ start_wg() {
     ip netns exec lightsail nft -f /etc/nftables-ligthsail.conf
     ip netns exec lightsail wg-quick up wg0
 
-    ip netns exec us-west-1 ip rule add fwmark 11 table 11
-    ip netns exec us-west-1 nft -f /etc/nftables-us-west-1.conf
-    ip netns exec us-west-1 wg-quick up wg1
+    #ip netns exec us-west-1 ip rule add fwmark 11 table 11
+    #ip netns exec us-west-1 nft -f /etc/nftables-us-west-1.conf
+    #ip netns exec us-west-1 wg-quick up wg1
 }
 
 enable_forwarding
