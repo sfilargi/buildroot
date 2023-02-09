@@ -14,7 +14,6 @@ setup_ns() {
     ip netns add london
     ip netns add starlink
     ip netns add lightsail
-    ip netns add us-west-1
 }
 
 setup_switch() {
@@ -26,7 +25,6 @@ setup_switch() {
     ip link add veth3 netns london type veth peer name veth3 netns switch
     ip link add veth8 netns starlink type veth peer name veth8 netns switch
     ip link add veth10 netns lightsail type veth peer name veth10 netns switch
-    ip link add veth11 netns us-west-1 type veth peer name veth11 netns switch
 
     ip netns exec switch ip link set veth1 master br0
     ip netns exec switch ip link set veth1 up
@@ -42,8 +40,6 @@ setup_switch() {
     ip netns exec switch ip link set veth8 up
     ip netns exec switch ip link set veth10 master br0
     ip netns exec switch ip link set veth10 up
-    ip netns exec switch ip link set veth11 master br0
-    ip netns exec switch ip link set veth11 up
 
     ip addr add 10.0.0.1/24 dev veth1
     ip link set veth1 up
@@ -55,8 +51,6 @@ setup_switch() {
     ip netns exec starlink ip link set veth8 up
     ip netns exec lightsail ip addr add 10.0.0.10/24 dev veth10
     ip netns exec lightsail ip link set veth10 up
-    ip netns exec us-west-1 ip addr add 10.0.0.11/24 dev veth11
-    ip netns exec us-west-1 ip link set veth11 up
 }
 
 setup_lo() {
@@ -66,19 +60,30 @@ setup_lo() {
 
 setup_eno1() {
     ip addr add 192.168.1.2/24 dev eno1
+    ip link set eno1 down
+    ip link set dev eno1 address 0e:00:00:00:77:01
     ip link set eno1 up
 
     ip link add link eno1 name eno1.2 type vlan id 2
+    ip link set eno1.2 down
+    ip link set dev eno1.2 address 0e:00:00:00:77:02
+    ip link set eno1.2 up
     ip link set eno1.2 netns sanjose
     ip netns exec sanjose ip addr add 192.168.2.1/24 dev eno1.2
     ip netns exec sanjose ip link set eno1.2 up
 
     ip link add link eno1 name eno1.3 type vlan id 3
+    ip link set eno1.3 down
+    ip link set dev eno1.3 address 0e:00:00:00:77:03
+    ip link set eno1.3 up
     ip link set eno1.3 netns london
     ip netns exec london ip addr add 192.168.3.1/24 dev eno1.3
     ip netns exec london ip link set eno1.3 up
 
     ip link add link eno1 name eno1.8 type vlan id 8
+    ip link set eno1.8 down
+    ip link set dev eno1.8 address 0e:00:00:00:77:08
+    ip link set eno1.8 up
     ip link set eno1.8 netns starlink
     ip netns exec starlink ip link set eno1.8 up
 }
@@ -90,7 +95,6 @@ setup_routes() {
     ip route add default via 10.0.0.8
 
     ip netns exec sanjose ip route add 192.168.1.0/24 via 10.0.0.1
-    #ip netns exec sanjose ip route add default via 10.0.0.11
     ip netns exec sanjose ip route add default via 10.0.0.8
 
     ip netns exec london ip route add 192.168.1.0/24 via 10.0.0.1
@@ -99,19 +103,13 @@ setup_routes() {
     ip netns exec starlink ip route add 192.168.1.0/24 via 10.0.0.1
     ip netns exec starlink ip route add 192.168.2.0/24 via 10.0.0.2
     ip netns exec starlink ip route add 192.168.3.0/24 via 10.0.0.3
-    ip netns exec starlink ip route add 192.168.4.0/24 via 10.0.0.4
     ip netns exec starlink ip route add 10.8.0.2/32 via 10.0.0.10
-    ip netns exec starlink ip route add 10.11.0.2/32 via 10.0.0.11
 
     ip netns exec lightsail ip route add 192.168.3.0/24 via 10.0.0.3
     ip netns exec lightsail ip route add default via 10.0.0.8
-
-    ip netns exec us-west-1 ip route add 192.168.2.0/24 via 10.0.0.2
-    ip netns exec us-west-1 ip route add default via 10.0.0.8
 }
 
 run_dhcpd() {
-    #ip netns exec sanjose udhcpd -S /etc/udhcpd-sanjose.conf
     ip netns exec sanjose /usr/sbin/dnsmasq -C /etc/dnsmasq-sanjose.conf
     ip netns exec london udhcpd -S /etc/udhcpd-london.conf
 }
@@ -136,10 +134,6 @@ start_wg() {
     ip netns exec lightsail ip rule add fwmark 10 table 10
     ip netns exec lightsail nft -f /etc/nftables-ligthsail.conf
     ip netns exec lightsail wg-quick up wg0
-
-    #ip netns exec us-west-1 ip rule add fwmark 11 table 11
-    #ip netns exec us-west-1 nft -f /etc/nftables-us-west-1.conf
-    #ip netns exec us-west-1 wg-quick up wg1
 }
 
 enable_forwarding

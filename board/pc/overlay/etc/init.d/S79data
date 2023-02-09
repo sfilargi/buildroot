@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# Some hacks as I can't figure how to properly make it mount /data
+
+run_local() {
+	    mkdir -p /data
+	    mount -t ext4 /dev/sda3 /data
+	    touch /data/dnsmasq.leases
+}
+
+case "$1" in
+        start)
+                echo Custom startup actions
+		run_local
+                ;;
+        *)
+                ;;
+esac
+
+exit $?
